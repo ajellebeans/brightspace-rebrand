@@ -120,8 +120,8 @@
     <h2 style="margin:.1rem 0 .6rem;color:var(--forest);font-size:1.1rem;">Step 3 &nbsp;Put it back into Brightspace</h2>
     <p style="margin:.1rem 0;">When it's done, you'll see one or two <b>download buttons</b> above:</p>
     <ul style="margin:.4rem 0 .2rem 1.2rem;padding:0;">
-      <li><b>REBRANDED</b> — the new look, same pages as before <span class="muted">(the safe choice)</span></li>
-      <li><b>REBRANDED (combined)</b> — the new look, with very short pages merged together for less clicking</li>
+      <li><b>Template Applied</b> — the new look, same pages as before <span class="muted">(the safe choice)</span></li>
+      <li><b>Template Applied (Condensed Content)</b> — the new look, with very short pages merged together for less clicking</li>
     </ul>
     <p style="margin:.6rem 0 0;">Import one back into Brightspace:
        <b>Course Admin → Import / Export / Copy Components → Import Components → Start → Upload your file → Import All Components</b>.</p>
@@ -129,7 +129,7 @@
        especially your <b>quizzes, assignments, discussions and any release conditions</b>, since those don't always
        carry across the Common Cartridge format perfectly (your pages, files, images and links are what this tool protects).
        <span class="muted">No sandbox? Ask CTLS / LMS support for one.</span> If the combined version looks off,
-       use the plain <b>REBRANDED</b> file instead.</p>
+       use the plain <b>Template Applied</b> file instead.</p>
     <div class="note" style="background:#f0e8f0;border-color:#d8c4d7;">💡 <b>Good to know:</b> this tool never changes
        your real course — it only makes a new file. When you import into your live course, the import <i>adds</i>
        pages as new modules (it never overwrites), so delete the old modules first to avoid two copies.
@@ -603,11 +603,11 @@ $('#go').addEventListener('click',async()=>{
    log(`Your course: ${zip.entries.length} files, ${htmlN} pages.\n`);
    if(mode==='restyle'||mode==='both'){
      log('Making the new-look version …');const b=await buildRestyle(zip,man,m,true);
-     log('Double-checking it:');await verify(b);dlButton(b,`${base} - REBRANDED.imscc`,true);log('');
+     log('Double-checking it:');await verify(b);dlButton(b,`${base} - Template Applied.imscc`,true);log('');
    }
    if(mode==='combine'||mode==='both'){
      log('Making the new-look + combined version …');const b=await buildCombine(zip,man,m,keep,true);
-     log('Double-checking it:');await verify(b);dlButton(b,`${base} - REBRANDED (combined).imscc`,false);log('');
+     log('Double-checking it:');await verify(b);dlButton(b,`${base} - Template Applied (Condensed Content).imscc`,false);log('');
    }
    log('All done! Click the download button(s) above.','pass');
  }catch(err){log('Something went wrong: '+err.message,'err');console.error(err);}
