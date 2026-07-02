@@ -143,7 +143,11 @@
    ========================================================================= */
 const $=s=>document.querySelector(s);
 const log=(m,cls)=>{const el=$('#log');el.style.display='block';
-  el.innerHTML+=(cls?`<span class="${cls}">${m}</span>`:m)+"\n";el.scrollTop=el.scrollHeight;};
+  // Insert the message as TEXT, never HTML: m can contain untrusted course-export
+  // titles (e.g. a manifest item title), so building innerHTML from it is XSS.
+  const node=cls?document.createElement('span'):document.createTextNode(m);
+  if(cls){node.className=cls;node.textContent=m;}
+  el.appendChild(node);el.appendChild(document.createTextNode("\n"));el.scrollTop=el.scrollHeight;};
 
 /* ---------- CRC32 ---------- */
 const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;
@@ -300,6 +304,13 @@ function markerName(src,alt){src=src||'';const m=src.match(/([^/]+?)(?:\(\d+\))?
  let label=f.replace(/\s*_\d+_.*$/,'').replace(/\(\d+\)/,'').trim();return label||((alt||'').trim().toLowerCase())||null;}
 function unwrap(el){const p=el.parentNode;if(!p)return;while(el.firstChild)p.insertBefore(el.firstChild,el);p.removeChild(el);}
 
+// Only allow safe URL schemes on href/src that survive into the rebuilt course.
+// Resolving via new URL() (not a regex) also strips tab/newline scheme-obfuscation
+// like "java\tscript:". Relative/anchor/query refs resolve to https and pass.
+function okUrl(v){v=(v||'').trim();if(!v)return false;
+ try{const u=new URL(v,'https://x.invalid/');return u.protocol==='http:'||u.protocol==='https:'||u.protocol==='mailto:';}
+ catch(e){return false;}}
+
 function cleanBody(htmlStr){
  htmlStr=htmlStr||'';
  htmlStr=htmlStr.replace(/<!--([\s\S]*?)-->/g,(m,inner)=>/<iframe[^>]+src=/i.test(inner)?inner:'');
@@ -332,9 +343,9 @@ function cleanBody(htmlStr){
      else{const ss=(el.getAttribute('srcset')||'').trim();if(ss)el.setAttribute('src',ss.split(',')[0].trim().split(' ')[0]);}}
    [...el.attributes].forEach(at=>{if(!(keep&&keep.has(at.name)))el.removeAttribute(at.name);});
    const st=layout.has(el)?LAYOUT_TD:INLINE_STYLE[name];if(st)el.setAttribute('style',st);
-   if(name==='img'){if(!(el.getAttribute('src')||'').trim()){el.remove();return;}el.removeAttribute('width');el.removeAttribute('height');el.setAttribute('loading','lazy');el.setAttribute('decoding','async');}
-   if(name==='iframe'){const s=el.getAttribute('src')||'';if(s.startsWith('http://'))el.setAttribute('src','https://'+s.slice(7));el.setAttribute('loading','lazy');}
-   if(name==='a'){const h=el.getAttribute('href')||'';if(/^https?:/.test(h)&&!el.getAttribute('target')){el.setAttribute('target','_blank');el.setAttribute('rel','noopener');}}});
+   if(name==='img'){const s=(el.getAttribute('src')||'').trim();if(!s||!okUrl(s)){el.remove();return;}el.removeAttribute('width');el.removeAttribute('height');el.setAttribute('loading','lazy');el.setAttribute('decoding','async');}
+   if(name==='iframe'){let s=(el.getAttribute('src')||'').trim();if(s.startsWith('http://')){s='https://'+s.slice(7);el.setAttribute('src',s);}if(!okUrl(s)){el.remove();return;}el.setAttribute('loading','lazy');}
+   if(name==='a'){const h=(el.getAttribute('href')||'').trim();if(h&&!okUrl(h)){el.removeAttribute('href');}else if(/^https?:/.test(h)&&!el.getAttribute('target')){el.setAttribute('target','_blank');el.setAttribute('rel','noopener');}}});
  // marker buttons -> subheads (after scrub so their style survives)
  [...body.querySelectorAll('img')].forEach(img=>{if(!img.isConnected)return;
    const nm=markerName(img.getAttribute('src'),img.getAttribute('alt'));if(!nm)return;
