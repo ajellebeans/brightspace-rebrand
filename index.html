@@ -442,8 +442,17 @@ function markerName(src,alt){src=src||'';
  let s=src.replace(/%20/ig,' ').replace(/_20/g,' ').split('#')[0].split('?')[0].replace(/_data-ally[^/]*$/,'');
  const m=s.match(/([^/]+?)(?:\(\d+\))?\.(png|jpe?g|gif)\s*$/i);
  const f=m?m[1].trim().toLowerCase():'';
- if(!(/blackboard icons\//i.test(s)||/\/new icons\//i.test(s)||MARKER_COLOR[f]))return null;
- let label=f.replace(/\s*_\d+_.*$/,'').replace(/\(\d+\)/,'').trim();return label||((alt||'').trim().toLowerCase())||null;}
+ const inIconFolder=/blackboard icons\//i.test(s)||/\/new icons\//i.test(s);
+ if(!(inIconFolder||MARKER_COLOR[f]))return null;
+ let label=f.replace(/\s*_\d+_.*$/,'').replace(/\(\d+\)/,'').trim();label=label||((alt||'').trim().toLowerCase())||null;
+ if(!inIconFolder){
+   // Bare filename match ("Overview.png" anywhere) is only trusted when the alt text agrees:
+   // real marker buttons ship with empty alt or the marker's own name, while a content image
+   // that happens to share the name (a class tile called Overview.png) has a descriptive alt.
+   const a=(alt||'').trim().toLowerCase();
+   if(a&&a!==label&&!MARKER_COLOR[a])return null;
+ }
+ return label;}
 function unwrap(el){const p=el.parentNode;if(!p)return;while(el.firstChild)p.insertBefore(el.firstChild,el);p.removeChild(el);}
 
 // Only allow safe URL schemes on href/src that survive into the rebuilt course.
@@ -469,6 +478,15 @@ function cleanBody(htmlStr){
  [...body.querySelectorAll('a')].forEach(a=>{if(!a.isConnected)return;
    const href=(a.getAttribute('href')||'').trim(),txt=(a.textContent||'').trim().toLowerCase();
    if(txt.startsWith('display.'))a.remove();else if(href===''||href==='#'){a.textContent.trim()?unwrap(a):a.remove();}});
+ // rescue CSS background images (tile art) into a real <img> BEFORE the attr-scrub drops style —
+ // otherwise the picture silently disappears with the stripped style attribute.
+ [...body.querySelectorAll('[style]')].forEach(el=>{if(!el.isConnected)return;
+   const bm=(el.getAttribute('style')||'').match(/background(?:-image)?\s*:[^;]*?url\(\s*['"]?([^'")]+?)['"]?\s*\)/i);
+   if(!bm)return;const u=bm[1].trim();
+   if(!u||u.startsWith('data:')||el.querySelector('img'))return;
+   const im=doc.createElement('img');im.setAttribute('src',u);
+   im.setAttribute('alt',(el.textContent||'').trim().slice(0,80));
+   el.insertBefore(im,el.firstChild);});
  // unwrap span/font
  [...body.querySelectorAll('span,font')].forEach(unwrap);
  // layout vs data tables
@@ -613,9 +631,13 @@ async function buildCombine(zip,man,m,keepSep,reorder){
    for(const c of [...it.children].filter(x=>x.tagName==='item')){
      // honor keepSep at EVERY level — real modules often sit under an untitled wrapper item.
      if(keepSep.has(titleOf(c))){flush();continue;}
+     // An item with child items is STRUCTURE (a unit heading), even when it also carries its
+     // own content page (D2L exports a module description as identifierref on the module item).
+     // Merging one used to delete the whole unit from the manifest — never fold these.
+     const hasKids=[...c.children].some(x=>x.tagName==='item');
      const he=m.htmlEntry(c);
-     if(he&&!INSTR(titleOf(c)))run.push(c);
-     else{flush();if([...c.children].some(x=>x.tagName==='item'))visit(c);}}
+     if(he&&!hasKids&&!INSTR(titleOf(c)))run.push(c);
+     else{flush();if(hasKids)visit(c);}}
    flush();};
  [...m.org.children].filter(x=>x.tagName==='item').forEach(top=>{if(!keepSep.has(titleOf(top)))visit(top);});
 
@@ -640,7 +662,15 @@ async function buildCombine(zip,man,m,keepSep,reorder){
  // manifest surgery (string) — reorder FIRST (by identifier), then prune merged items
  let nm=man;
  if(reorder){const r=reorderManifest(m,man);nm=r.man;r.logs.forEach(l=>log(l));}
- for(const iid of itemRm)nm=nm.replace(new RegExp('<item\\b[^>]*identifier="'+esc4(iid)+'"[^>]*>[\\s\\S]*?</item>\\s*'),'');
+ for(const iid of itemRm){
+   // balanced-block removal via blockEnd — a lazy ...*?</item> regex would stop at the first
+   // nested close tag and shred the manifest if the item ever has children.
+   const om=nm.match(new RegExp('<item\\b[^>]*\\bidentifier="'+esc4(iid)+'"[^>]*>'));
+   if(!om)continue;
+   let end=blockEnd(nm,om.index);
+   const ws=nm.slice(end).match(/^\s*/);if(ws)end+=ws[0].length;
+   nm=nm.slice(0,om.index)+nm.slice(end);
+ }
  for(const rid of resRm){nm=nm.replace(new RegExp('<resource\\b[^>]*identifier="'+esc4(rid)+'"[^>]*>[\\s\\S]*?</resource>\\s*'),'');
    nm=nm.replace(new RegExp('<resource\\b[^>]*identifier="'+esc4(rid)+'"[^>]*/>\\s*'),'');}
  for(const[rid,paths]of Object.entries(hostExtra)){
