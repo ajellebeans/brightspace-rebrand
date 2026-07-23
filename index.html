@@ -387,7 +387,11 @@ const MARKER_SVG={introduction:'flag','course learning outcomes':'outcomes','lea
  'learning activity':'activity',read:'read',watch:'watch','additional resources':'resources',references:'book',
  conclusion:'conclude','time commitment':'clock','catch up':'refresh','concepts of the week':'book',bring:'check',do:'check',overview:'book',assessment:'assess'};
 const KEEP_ATTR={a:new Set(['href','target','rel']),img:new Set(['src','alt','width','height']),
- iframe:new Set(['src','width','height','allow','allowfullscreen','frameborder','title','loading'])};
+ iframe:new Set(['src','width','height','allow','allowfullscreen','frameborder','title','loading']),
+ video:new Set(['src','controls','poster','width','height','preload','loop','muted','playsinline']),
+ audio:new Set(['src','controls','preload','loop','muted']),
+ source:new Set(['src','srcset','type','media']),track:new Set(['src','kind','srclang','label','default']),
+ embed:new Set(['src','type','width','height']),object:new Set(['data','type','width','height'])};
 const INLINE_STYLE={p:'margin:0 0 .85rem;',li:'margin-bottom:.35rem;line-height:1.65;',
  ul:'margin:.4rem 0 1rem 1.4rem;padding:0;',ol:'margin:.4rem 0 1rem 1.4rem;padding:0;',
  a:'color:#003129;text-decoration:underline;text-underline-offset:2px;',
@@ -400,6 +404,7 @@ const INLINE_STYLE={p:'margin:0 0 .85rem;',li:'margin-bottom:.35rem;line-height:
  blockquote:'margin:.7rem 0 1rem;padding:.6rem 1rem;border-left:4px solid #4032A4;background:#CCC8E8;border-radius:.6rem;',
  hr:'border:0;border-top:1px solid #E8E8E8;margin:1.4rem 0;',
  iframe:'max-width:100%;border:0;border-radius:.6rem;margin:.6rem 0;',
+ video:'max-width:100%;border-radius:.6rem;margin:.6rem 0;',audio:'width:100%;max-width:480px;margin:.6rem 0;',
  table:'border-collapse:collapse;width:100%;margin:.6rem 0 1.1rem;font-size:.95rem;',
  td:'border:1px solid #E8E8E8;padding:.5rem .65rem;vertical-align:top;',
  th:'border:1px solid #E8E8E8;padding:.5rem .65rem;text-align:left;background:#CCBFCC;color:#3D1C3C;font-weight:700;'};
@@ -505,6 +510,8 @@ function cleanBody(htmlStr){
    const st=layout.has(el)?LAYOUT_TD:INLINE_STYLE[name];if(st)el.setAttribute('style',st);
    if(name==='img'){const s=(el.getAttribute('src')||'').trim();if(!s||!okUrl(s)){el.remove();return;}el.removeAttribute('width');el.removeAttribute('height');el.setAttribute('loading','lazy');el.setAttribute('decoding','async');}
    if(name==='iframe'){let s=(el.getAttribute('src')||'').trim();if(s.startsWith('http://')){s='https://'+s.slice(7);el.setAttribute('src',s);}if(!okUrl(s)){el.remove();return;}el.setAttribute('loading','lazy');}
+   if(name==='video'||name==='audio'||name==='source'||name==='track'||name==='embed'){const s=(el.getAttribute('src')||'').trim();if(s&&!okUrl(s))el.removeAttribute('src');}
+   if(name==='object'){const s=(el.getAttribute('data')||'').trim();if(s&&!okUrl(s))el.removeAttribute('data');}
    if(name==='a'){const h=(el.getAttribute('href')||'').trim();if(h&&!okUrl(h)){el.removeAttribute('href');}else if(/^https?:/.test(h)&&!el.getAttribute('target')){el.setAttribute('target','_blank');el.setAttribute('rel','noopener');}}});
  // marker buttons -> subheads (after scrub so their style survives)
  [...body.querySelectorAll('img')].forEach(img=>{if(!img.isConnected)return;
@@ -516,7 +523,7 @@ function cleanBody(htmlStr){
    target.parentNode.replaceChild(fl,target);});
  // remove empty p/div
  [...body.querySelectorAll('p,div')].forEach(el=>{if(!el.isConnected)return;
-   if(!el.textContent.trim()&&!el.querySelector('img,iframe,table,hr,br,a'))el.remove();});
+   if(!el.textContent.trim()&&!el.querySelector('img,iframe,table,hr,br,a,video,audio,embed,object,svg'))el.remove();});
  return body.innerHTML;
 }
 function renderStandalone(title,body){const[tok,svg]=cardTheme(title,body);let inner=cleanBody(body);
@@ -543,9 +550,13 @@ function buildModel(zip,man){
    resHref[r.getAttribute('identifier')]=href||'';
    resDeps[r.getAttribute('identifier')]=[...r.querySelectorAll('dependency')].map(d=>d.getAttribute('identifierref'));});
  const names=zip.entries.map(e=>e.name);
+ const dec=s=>{try{return decodeURIComponent(s)}catch(e){return s}};
+ const decName={};for(const n of names)if(!(dec(n) in decName))decName[dec(n)]=n;
  const entryFor=h=>{if(!h)return null;if(zip.byName[h])return h;
-   const suf=h.includes('/')?h.slice(h.indexOf('/')+1):h;
-   return names.find(n=>n.endsWith('/'+suf)||n.endsWith(suf))||null;};
+   const dh=dec(h);if(decName[dh])return decName[dh];
+   // suffix fallback anchored at '/' so "1.html" can never claim "11.html"
+   const suf=h.includes('/')?h.slice(h.indexOf('/')+1):h,dsuf=dec(suf);
+   return names.find(n=>n.endsWith('/'+suf)||dec(n).endsWith('/'+dsuf))||null;};
  const titleByHref={};
  doc.querySelectorAll('item').forEach(it=>{const ir=it.getAttribute('identifierref');
    if(ir&&resHref[ir]!==undefined)titleByHref[resHref[ir]]=titleOf(it);});
@@ -642,22 +653,45 @@ async function buildCombine(zip,man,m,keepSep,reorder){
  [...m.org.children].filter(x=>x.tagName==='item').forEach(top=>{if(!keepSep.has(titleOf(top)))visit(top);});
 
  const itemRm=new Set(),resRm=new Set(),hostExtra={},hostCombined={},relocate={},skip=new Set();
- const fold=e=>e.slice(0,e.lastIndexOf('/'));
+ const fold=e=>e.includes('/')?e.slice(0,e.lastIndexOf('/')):'';
+ const isHtml=n=>n.toLowerCase().endsWith('.html');
+ // A member's folder may only be relocated/skipped when it belongs to that page ALONE.
+ // Other producers (Canvas, hand-built cartridges) keep MANY pages in one shared folder,
+ // and skipping such a folder used to silently delete every page in it from the output.
+ const htmlUnder=f=>zip.entries.reduce((k,e)=>k+(e.name.startsWith(f+'/')&&isHtml(e.name)?1:0),0);
  const bodyOf=async e=>{const raw=await zip.text(e);const bm=raw.match(/<body[^>]*>([\s\S]*)<\/body>/i);return bm?bm[1]:raw;};
  for(const g of groups){const members=g.members,host=members[0];
    const hostE=m.htmlEntry(host),hostFol=fold(hostE),hostRes=host.getAttribute('identifierref');
    const rendered=[[titleOf(host),await bodyOf(hostE)]];
-   for(const mem of members.slice(1)){const me=m.htmlEntry(mem),mfol=fold(me),base=mfol.split('/').pop();
-     for(const e of zip.entries){if(e.name.startsWith(mfol+'/')&&!e.name.toLowerCase().endsWith('.html')){
-       const np=`${hostFol}/_m/${base}/${e.name.slice(mfol.length+1)}`;relocate[np]=e;
-       (hostExtra[hostRes]=hostExtra[hostRes]||[]).push(np);}}
+   for(const mem of members.slice(1)){const me=m.htmlEntry(mem),mfol=fold(me);
+     const exclusive=!!mfol&&mfol!==hostFol&&htmlUnder(mfol)===1;
+     const sameFolder=mfol===hostFol;
+     if(!exclusive&&!sameFolder)continue;   // folder shared with other pages: leave this page standalone
      let b=await bodyOf(me);
-     b=b.replace(/(src|href)="([^"]*)"/g,(mm,a,v)=>{if(!v.trim())return mm;
-       if(/^(https?:|mailto:|#|data:|\/)/.test(v))return mm;const vv=v.startsWith('./')?v.slice(2):v;return `${a}="_m/${base}/${vv}"`;});
+     if(exclusive){const base=mfol.split('/').pop();
+       for(const e of zip.entries){if(e.name.startsWith(mfol+'/')&&!isHtml(e.name)){
+         const np=`${hostFol}/_m/${base}/${e.name.slice(mfol.length+1)}`;relocate[np]=e;
+         (hostExtra[hostRes]=hostExtra[hostRes]||[]).push(np);}}
+       b=b.replace(/(src|href)="([^"]*)"/g,(mm,a,v)=>{if(!v.trim())return mm;
+         if(/^(https?:|mailto:|#|data:|\/)/.test(v))return mm;const vv=v.startsWith('./')?v.slice(2):v;return `${a}="_m/${base}/${vv}"`;});
+       skip.add(mfol);}
+     else{ // same folder as the host: refs already resolve; re-declare the member's assets on the host
+       for(const e of zip.entries){const inFol=mfol?e.name.startsWith(mfol+'/'):!e.name.includes('/');
+         if(inFol&&!isHtml(e.name)&&e.name!=='imsmanifest.xml')(hostExtra[hostRes]=hostExtra[hostRes]||[]).push(e.name);}}
      rendered.push([titleOf(mem),b]);
      itemRm.add(mem.getAttribute('identifier'));resRm.add(mem.getAttribute('identifierref'));
-     (m.resDeps[mem.getAttribute('identifierref')]||[]).forEach(d=>resRm.add(d));skip.add(mfol);}
+     (m.resDeps[mem.getAttribute('identifierref')]||[]).forEach(d=>resRm.add(d));}
+   if(rendered.length<2)continue;           // nothing could be folded — leave the host page as-is
    hostCombined[hostE]=renderCombined(g.sub,rendered);}
+ // Resurrect anything in resRm that a surviving item or resource still needs — a merged page's
+ // <dependency> may be shared (a common stylesheet), and pruning it would break other topics.
+ {const live=new Set();
+  m.doc.querySelectorAll('item').forEach(it=>{const ir=it.getAttribute('identifierref');
+    if(ir&&!itemRm.has(it.getAttribute('identifier')))live.add(ir);});
+  for(const[rid,deps]of Object.entries(m.resDeps))if(!resRm.has(rid))deps.forEach(d=>live.add(d));
+  let changed=true;
+  while(changed){changed=false;
+    for(const r of [...resRm])if(live.has(r)){resRm.delete(r);(m.resDeps[r]||[]).forEach(d=>live.add(d));changed=true;}}}
 
  // manifest surgery (string) — reorder FIRST (by identifier), then prune merged items
  let nm=man;
@@ -674,8 +708,10 @@ async function buildCombine(zip,man,m,keepSep,reorder){
  for(const rid of resRm){nm=nm.replace(new RegExp('<resource\\b[^>]*identifier="'+esc4(rid)+'"[^>]*>[\\s\\S]*?</resource>\\s*'),'');
    nm=nm.replace(new RegExp('<resource\\b[^>]*identifier="'+esc4(rid)+'"[^>]*/>\\s*'),'');}
  for(const[rid,paths]of Object.entries(hostExtra)){
-   const fx=[...new Set(paths)].sort().map(p=>`\n      <file href="${xesc(p)}" />`).join('');
-   nm=nm.replace(new RegExp('(<resource\\b[^>]*identifier="'+esc4(rid)+'"[^>]*>[\\s\\S]*?)</resource>'),(mm,a)=>a+fx+'\n    </resource>');}
+   nm=nm.replace(new RegExp('(<resource\\b[^>]*identifier="'+esc4(rid)+'"[^>]*>[\\s\\S]*?)</resource>'),(mm,a)=>{
+     const fx=[...new Set(paths)].sort().filter(p=>!a.includes('href="'+xesc(p)+'"'))
+       .map(p=>`\n      <file href="${xesc(p)}" />`).join('');
+     return a+fx+'\n    </resource>';});}
 
  const w=makeZipWriter();let co=0,re=0,cp=0,rl=0,sk=0;
  for(const e of zip.entries){
@@ -700,7 +736,8 @@ async function verify(blob){
  const dangI=[...doc.querySelectorAll('item')].filter(it=>it.getAttribute('identifierref')&&!resIds.has(it.getAttribute('identifierref'))).length;
  const dangD=[...doc.querySelectorAll('dependency')].filter(d=>!resIds.has(d.getAttribute('identifierref'))).length;
  const dec=s=>{try{return decodeURIComponent(s)}catch(e){return s}};
- const zhas=h=>{h=dec(h);if(names.has(h))return true;for(const n of names)if(n.endsWith('/'+h)||n.endsWith(h))return true;return false;};
+ // anchored at '/' (and decoded on both sides) so a missing "1.html" can't be satisfied by "11.html"
+ const zhas=h=>{h=dec(h);if(names.has(h))return true;for(const n of names){const d=dec(n);if(d===h||d.endsWith('/'+h))return true;}return false;};
  let miss=0;doc.querySelectorAll('resource file').forEach(f=>{const h=f.getAttribute('href');if(h&&!zhas(h))miss++;});
  // in-page refs
  let checked=0,broken=0;
