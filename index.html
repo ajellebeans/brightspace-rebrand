@@ -466,6 +466,9 @@ function unwrap(el){const p=el.parentNode;if(!p)return;while(el.firstChild)p.ins
 function okUrl(v){v=(v||'').trim();if(!v)return false;
  try{const u=new URL(v,'https://x.invalid/');return u.protocol==='http:'||u.protocol==='https:'||u.protocol==='mailto:';}
  catch(e){return false;}}
+// Pictures may also legitimately arrive as data: URIs (pasted/embedded images). Allow
+// only image/* data URIs — inert in an <img>/background context, never script-bearing.
+function okImg(v){v=(v||'').trim();return okUrl(v)||/^data:image\/[a-z0-9.+-]+[;,]/i.test(v);}
 
 function cleanBody(htmlStr){
  htmlStr=htmlStr||'';
@@ -482,13 +485,14 @@ function cleanBody(htmlStr){
  // fake-button anchors
  [...body.querySelectorAll('a')].forEach(a=>{if(!a.isConnected)return;
    const href=(a.getAttribute('href')||'').trim(),txt=(a.textContent||'').trim().toLowerCase();
-   if(txt.startsWith('display.'))a.remove();else if(href===''||href==='#'){a.textContent.trim()?unwrap(a):a.remove();}});
+   if(txt.startsWith('display.'))a.remove();else if(href===''||href==='#'){(a.textContent.trim()||a.querySelector('img,iframe,video,audio,embed,object'))?unwrap(a):a.remove();}});
  // rescue CSS background images (tile art) into a real <img> BEFORE the attr-scrub drops style —
  // otherwise the picture silently disappears with the stripped style attribute.
  [...body.querySelectorAll('[style]')].forEach(el=>{if(!el.isConnected)return;
    const bm=(el.getAttribute('style')||'').match(/background(?:-image)?\s*:[^;]*?url\(\s*['"]?([^'")]+?)['"]?\s*\)/i);
    if(!bm)return;const u=bm[1].trim();
-   if(!u||u.startsWith('data:')||el.querySelector('img'))return;
+   if(!u||el.querySelector('img'))return;
+   if(/^data:/i.test(u)&&!/^data:image\//i.test(u))return;
    const im=doc.createElement('img');im.setAttribute('src',u);
    im.setAttribute('alt',(el.textContent||'').trim().slice(0,80));
    el.insertBefore(im,el.firstChild);});
@@ -508,9 +512,11 @@ function cleanBody(htmlStr){
      else{const ss=(el.getAttribute('srcset')||'').trim();if(ss)el.setAttribute('src',ss.split(',')[0].trim().split(' ')[0]);}}
    [...el.attributes].forEach(at=>{if(!(keep&&keep.has(at.name)))el.removeAttribute(at.name);});
    const st=layout.has(el)?LAYOUT_TD:INLINE_STYLE[name];if(st)el.setAttribute('style',st);
-   if(name==='img'){const s=(el.getAttribute('src')||'').trim();if(!s||!okUrl(s)){el.remove();return;}el.removeAttribute('width');el.removeAttribute('height');el.setAttribute('loading','lazy');el.setAttribute('decoding','async');}
+   if(name==='img'){const s=(el.getAttribute('src')||'').trim();if(!s||!okImg(s)){el.remove();return;}el.removeAttribute('width');el.removeAttribute('height');el.setAttribute('loading','lazy');el.setAttribute('decoding','async');}
    if(name==='iframe'){let s=(el.getAttribute('src')||'').trim();if(s.startsWith('http://')){s='https://'+s.slice(7);el.setAttribute('src',s);}if(!okUrl(s)){el.remove();return;}el.setAttribute('loading','lazy');}
    if(name==='video'||name==='audio'||name==='source'||name==='track'||name==='embed'){const s=(el.getAttribute('src')||'').trim();if(s&&!okUrl(s))el.removeAttribute('src');}
+   if(name==='source'){const ss=(el.getAttribute('srcset')||'').trim();
+     if(ss&&ss.split(',').some(c=>{const u=c.trim().split(/\s+/)[0];return u&&!okImg(u);}))el.removeAttribute('srcset');}
    if(name==='object'){const s=(el.getAttribute('data')||'').trim();if(s&&!okUrl(s))el.removeAttribute('data');}
    if(name==='a'){const h=(el.getAttribute('href')||'').trim();if(h&&!okUrl(h)){el.removeAttribute('href');}else if(/^https?:/.test(h)&&!el.getAttribute('target')){el.setAttribute('target','_blank');el.setAttribute('rel','noopener');}}});
  // marker buttons -> subheads (after scrub so their style survives)
@@ -663,17 +669,30 @@ async function buildCombine(zip,man,m,keepSep,reorder){
  for(const g of groups){const members=g.members,host=members[0];
    const hostE=m.htmlEntry(host),hostFol=fold(hostE),hostRes=host.getAttribute('identifierref');
    const rendered=[[titleOf(host),await bodyOf(hostE)]];
+   const usedBase={};                       // _m/<base> names already claimed under this host
    for(const mem of members.slice(1)){const me=m.htmlEntry(mem),mfol=fold(me);
      const exclusive=!!mfol&&mfol!==hostFol&&htmlUnder(mfol)===1;
      const sameFolder=mfol===hostFol;
      if(!exclusive&&!sameFolder)continue;   // folder shared with other pages: leave this page standalone
      let b=await bodyOf(me);
-     if(exclusive){const base=mfol.split('/').pop();
+     if(exclusive){let base=mfol.split('/').pop();
+       // two member folders can share a basename (unitA/page1, unitB/page1) — uniquify so
+       // the second relocation can't silently overwrite the first one's assets
+       if(usedBase[base]!==undefined&&usedBase[base]!==mfol){let n2=2;while(usedBase[base+'-'+n2]!==undefined)n2++;base=base+'-'+n2;}
+       usedBase[base]=mfol;
        for(const e of zip.entries){if(e.name.startsWith(mfol+'/')&&!isHtml(e.name)){
          const np=`${hostFol}/_m/${base}/${e.name.slice(mfol.length+1)}`;relocate[np]=e;
          (hostExtra[hostRes]=hostExtra[hostRes]||[]).push(np);}}
        b=b.replace(/(src|href)="([^"]*)"/g,(mm,a,v)=>{if(!v.trim())return mm;
-         if(/^(https?:|mailto:|#|data:|\/)/.test(v))return mm;const vv=v.startsWith('./')?v.slice(2):v;return `${a}="_m/${base}/${vv}"`;});
+         if(/^(https?:|mailto:|#|data:|\/)/.test(v))return mm;const vv=v.startsWith('./')?v.slice(2):v;
+         // Refs that resolve INSIDE the member's folder follow its assets into _m/<base>/.
+         // Refs that climb OUT (../shared/img.png) point at files that aren't moving, so
+         // re-base those onto the host page's folder instead of mangling them into _m/.
+         const pm=vv.match(/^([^?#]*)([?#][\s\S]*)?$/),abs=normPath(mfol+'/'+pm[1]);
+         if(abs.startsWith(mfol+'/'))return `${a}="_m/${base}/${vv}"`;
+         const t=abs.split('/'),f=hostFol?hostFol.split('/'):[];
+         let k=0;while(k<t.length&&k<f.length&&t[k]===f[k])k++;
+         return `${a}="${f.slice(k).map(()=>'..').concat(t.slice(k)).join('/')+(pm[2]||'')}"`;});
        skip.add(mfol);}
      else{ // same folder as the host: refs already resolve; re-declare the member's assets on the host
        for(const e of zip.entries){const inFol=mfol?e.name.startsWith(mfol+'/'):!e.name.includes('/');
@@ -741,11 +760,14 @@ async function verify(blob){
  let miss=0;doc.querySelectorAll('resource file').forEach(f=>{const h=f.getAttribute('href');if(h&&!zhas(h))miss++;});
  // in-page refs
  let checked=0,broken=0;
+ const decNames=new Set([...names].map(dec));   // zip may store encoded names; compare decoded too
  for(const e of zip.entries){if(!e.name.toLowerCase().endsWith('.html'))continue;
-   const folder=e.name.slice(0,e.name.lastIndexOf('/'));const raw=await zip.text(e.name);
+   // root-level pages have NO folder — slice(0,-1) used to chop the filename's last char
+   // and made every relative ref on such a page count as broken
+   const folder=e.name.includes('/')?e.name.slice(0,e.name.lastIndexOf('/')):'';const raw=await zip.text(e.name);
    for(const mm of raw.matchAll(/(?:src|href)="([^"]+)"/g)){let v=mm[1].replace(/&amp;/g,'&');
      if(/^(https?:|mailto:|tel:|#|data:|javascript:|@X@)/i.test(v)||v.startsWith('/'))continue;
-     checked++;const tgt=dec(normPath(folder+'/'+v));if(!names.has(tgt))broken++;}}
+     checked++;const tgt=dec(normPath(folder+'/'+v));if(!names.has(tgt)&&!decNames.has(tgt))broken++;}}
  let vids=0;for(const e of zip.entries){if(e.name.toLowerCase().endsWith('.html')){const r=await zip.text(e.name);vids+=(r.match(/<iframe[^>]+src="https?:\/\//g)||[]).length;}}
  log(`  manifest parses · dangling item→res:${dangI} dep→res:${dangD} · missing files:${miss}`);
  log(`  in-page refs ${checked} checked, ${broken} broken · live videos:${vids}`);
