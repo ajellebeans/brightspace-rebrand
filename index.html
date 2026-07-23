@@ -441,20 +441,33 @@ function fieldLabel(name,tok,svgkey){const c=COLORS[tok]||COLORS.forest;
    ? `<svg aria-hidden="true" fill="none" stroke="${c}" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" style="width:1.2rem;height:1.2rem;flex-shrink:0;display:block;">${SVG[svgkey]}</svg>`
    : `<span style="width:.5rem;height:.5rem;border-radius:50%;background:${c};flex-shrink:0;display:inline-block;"></span>`;
  return `<h3 style="display:flex;align-items:center;gap:.5rem;font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:${c};margin:1.3rem 0 .55rem;">${glyph}${esc(t)}</h3>`;}
+// Alt text reduced to its marker essence: "Read icon.", "READ button", "read.png" -> "read".
+// Descriptive alts ("Read the following chapters") do NOT reduce to a marker name and stay safe.
+function normAlt(a){a=(a||'').trim().toLowerCase().replace(/\.(png|jpe?g|gif|svg)\s*$/,'');
+ return a.replace(/\b(icons?|buttons?|images?|graphics?|img)\b/g,' ').replace(/[^a-z ]+/g,' ').replace(/\s+/g,' ').trim();}
 function markerName(src,alt){src=src||'';
+ // A marker button INLINED as a data: URI has no filename to match — recognize it by alt
+ // alone, and only when the payload is icon-sized (real content photos are far bigger,
+ // and get kept as pictures even when their alt happens to say "Read").
+ if(/^data:image\//i.test(src)){
+   if(src.length>32768)return null;
+   const a=normAlt(alt);
+   return MARKER_COLOR[a]?a:null;}
  // Normalize first: Ally stamps "#data-ally..." on the src and some exports %20/_20-encode
- // the "Blackboard Icons" folder. Without this, those variants ship as raw (broken) icons.
- let s=src.replace(/%20/ig,' ').replace(/_20/g,' ').split('#')[0].split('?')[0].replace(/_data-ally[^/]*$/,'');
+ // the "Blackboard Icons" folder — or %2F/_2F-encode its slash, or +-encode its space.
+ // Without this, those variants ship as raw (broken) icons.
+ let s=src.replace(/%2F/ig,'/').replace(/_2F/g,'/').replace(/%20/ig,' ').replace(/_20/g,' ').split('#')[0].split('?')[0].replace(/_data-ally[^/]*$/,'');
  const m=s.match(/([^/]+?)(?:\(\d+\))?\.(png|jpe?g|gif)\s*$/i);
  const f=m?m[1].trim().toLowerCase():'';
- const inIconFolder=/blackboard icons\//i.test(s)||/\/new icons\//i.test(s);
+ const inIconFolder=/blackboard[ +]icons\//i.test(s)||/\/new[ +]icons\//i.test(s);
  if(!(inIconFolder||MARKER_COLOR[f]))return null;
- let label=f.replace(/\s*_\d+_.*$/,'').replace(/\(\d+\)/,'').trim();label=label||((alt||'').trim().toLowerCase())||null;
+ let label=f.replace(/\s*_\d+_.*$/,'').replace(/\(\d+\)/,'').trim();label=label||normAlt(alt)||null;
  if(!inIconFolder){
    // Bare filename match ("Overview.png" anywhere) is only trusted when the alt text agrees:
-   // real marker buttons ship with empty alt or the marker's own name, while a content image
-   // that happens to share the name (a class tile called Overview.png) has a descriptive alt.
-   const a=(alt||'').trim().toLowerCase();
+   // real marker buttons ship with empty alt or the marker's own name (possibly dressed up
+   // as "Read icon"), while a content image that happens to share the name (a class tile
+   // called Overview.png) has a descriptive alt.
+   const a=normAlt(alt);
    if(a&&a!==label&&!MARKER_COLOR[a])return null;
  }
  return label;}
