@@ -470,7 +470,10 @@ function markerName(src,alt){src=src||'';
    const a=normAlt(alt);
    if(a&&a!==label&&!MARKER_COLOR[a])return null;
  }
- return label;}
+ // Only names in the marker map convert. Designers hand-craft their OWN images into the
+ // icon folder too ("Activities & Assessments.png") — an unknown name is a real picture,
+ // and swapping it for a text subhead would destroy hand-done work.
+ return MARKER_COLOR[label]?label:null;}
 function unwrap(el){const p=el.parentNode;if(!p)return;while(el.firstChild)p.insertBefore(el.firstChild,el);p.removeChild(el);}
 
 // Only allow safe URL schemes on href/src that survive into the rebuilt course.
@@ -506,6 +509,9 @@ function cleanBody(htmlStr){
    if(!bm)return;const u=bm[1].trim();
    if(!u||el.querySelector('img'))return;
    if(/^data:/i.test(u)&&!/^data:image\//i.test(u))return;
+   // site-absolute paths (/images/ci/...) are LMS server chrome — unpackaged, they'd
+   // only ever import as a broken image, so don't rescue them
+   if(u.startsWith('/'))return;
    const im=doc.createElement('img');im.setAttribute('src',u);
    im.setAttribute('alt',(el.textContent||'').trim().slice(0,80));
    el.insertBefore(im,el.firstChild);});
@@ -525,7 +531,10 @@ function cleanBody(htmlStr){
      else{const ss=(el.getAttribute('srcset')||'').trim();if(ss)el.setAttribute('src',ss.split(',')[0].trim().split(' ')[0]);}}
    [...el.attributes].forEach(at=>{if(!(keep&&keep.has(at.name)))el.removeAttribute(at.name);});
    const st=layout.has(el)?LAYOUT_TD:INLINE_STYLE[name];if(st)el.setAttribute('style',st);
-   if(name==='img'){const s=(el.getAttribute('src')||'').trim();if(!s||!okImg(s)){el.remove();return;}el.removeAttribute('width');el.removeAttribute('height');el.setAttribute('loading','lazy');el.setAttribute('decoding','async');}
+   if(name==='img'){const s=(el.getAttribute('src')||'').trim();
+     // Blackboard player chrome ships as imgs labelled display.* (display.closePlayerControls)
+     if(/^display\./i.test((el.getAttribute('alt')||'').trim())){el.remove();return;}
+     if(!s||!okImg(s)){el.remove();return;}el.removeAttribute('width');el.removeAttribute('height');el.setAttribute('loading','lazy');el.setAttribute('decoding','async');}
    if(name==='iframe'){let s=(el.getAttribute('src')||'').trim();if(s.startsWith('http://')){s='https://'+s.slice(7);el.setAttribute('src',s);}if(!okUrl(s)){el.remove();return;}el.setAttribute('loading','lazy');}
    if(name==='video'||name==='audio'||name==='source'||name==='track'||name==='embed'){const s=(el.getAttribute('src')||'').trim();if(s&&!okUrl(s))el.removeAttribute('src');}
    if(name==='source'){const ss=(el.getAttribute('srcset')||'').trim();
@@ -888,6 +897,14 @@ $('#go').addEventListener('click',async()=>{
  try{
    const htmlN=Object.keys(m.titleByHref).filter(h=>{const e=m.entryFor(h);return e&&e.toLowerCase().endsWith('.html');}).length;
    log(`Your course: ${zip.entries.length} files, ${htmlN} pages.\n`);
+   // Items that arrived with NO content and NO children were emptied by Brightspace's OWN
+   // export (it leaves out web links, quizzes, hidden topics, ...). Say so up front —
+   // otherwise the conversion gets blamed for content this file never contained.
+   {const empt=[...m.doc.querySelectorAll('item')].filter(it=>!it.getAttribute('identifierref')
+     &&![...it.children].some(c=>c.tagName==='item')&&titleOf(it));
+    if(empt.length){log(`Heads-up: ${empt.length} item(s) in your course file came out of Brightspace EMPTY — the export leaves out things like web links, quizzes and hidden topics. They were already empty before this tool touched them:`,'warn');
+      const cnt={};empt.forEach(it=>{const t=titleOf(it);cnt[t]=(cnt[t]||0)+1;});
+      Object.entries(cnt).forEach(([t,n])=>log(`  · ${t}${n>1?` (×${n})`:''}`,'warn'));log('');}}
    if(mode==='restyle'||mode==='both'){
      log('Applying the style …');let b=await buildRestyle(zip,man,m,true);
      b=await repairRefs(b);
