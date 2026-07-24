@@ -183,6 +183,10 @@
       <span class="muted">…or click here to find it on your computer</span>
       <input id="file" type="file" accept=".imscc,.zip" aria-label="Choose your .imscc course file" class="hide"></div>
 
+    <div id="pkgnote" class="note hide" style="margin-top:1.2rem;">📦 <b>Brightspace Package detected.</b>
+      Your pages will get the RDP style; your unit descriptions (including their pictures), quizzes,
+      assignments, discussions and links all travel through <b>untouched</b>. Page-combining is only
+      available for <span class="ext">.imscc</span> exports, so you'll get the one styled download.</div>
     <div id="combinebox" class="hide" style="margin-top:1.2rem;">
       <p style="margin:.2rem 0 .3rem;font-weight:700;">Want fewer pages to click through?
         <span class="muted" style="font-weight:400;">(optional)</span></p>
@@ -575,7 +579,8 @@ function buildModel(zip,man){
  const resHref={},resDeps={};
  doc.querySelectorAll('resource').forEach(r=>{let href=r.getAttribute('href')||'';
    if(!href){const fe=r.querySelector('file');href=fe?fe.getAttribute('href'):'';}
-   resHref[r.getAttribute('identifier')]=href||'';
+   // D2L Brightspace Packages write Windows-style backslash paths in hrefs
+   resHref[r.getAttribute('identifier')]=(href||'').replace(/\\/g,'/');
    resDeps[r.getAttribute('identifier')]=[...r.querySelectorAll('dependency')].map(d=>d.getAttribute('identifierref'));});
  const names=zip.entries.map(e=>e.name);
  const dec=s=>{try{return decodeURIComponent(s)}catch(e){return s}};
@@ -839,8 +844,8 @@ async function setFile(f){
  $('#fname').textContent=f?`— ${f.name} (${(f.size/1048576).toFixed(0)} MB)`:'';
  $('#gohint').style.display=f?'none':'inline';
  $('#downloads').innerHTML=''; $('#log').style.display='none'; $('#log').textContent='';
- if(!f){$('#combinebox').classList.add('hide');return;}
- $('#combinebox').classList.remove('hide');
+ if(!f){$('#combinebox').classList.add('hide');$('#pkgnote').classList.add('hide');return;}
+ $('#combinebox').classList.remove('hide');$('#pkgnote').classList.add('hide');
  $('#ticktoggle').textContent='Tick all';
  $('#modlist').innerHTML='<span class="muted">Reading your course… (a big course can take a moment)</span>';
  try{
@@ -848,8 +853,12 @@ async function setFile(f){
    const man=await zip.text('imsmanifest.xml');
    if(!man){$('#modlist').innerHTML='<span class="err">This file has no course manifest inside — it may not be the <b>.imscc</b> that Brightspace exported. (A plain .zip you made yourself won\'t work.)</span>';return;}
    const m=buildModel(zip,man);
-   MODEL={zip,man,m};
-   renderModules(m);
+   // A D2L "Brightspace Package" export (not Common Cartridge): restyle-only — its manifest
+   // carries unit descriptions, quiz/assignment payloads etc. that must pass through untouched.
+   const isD2L=/desire2learn\.com\/xsd\/d2lcp/i.test(man);
+   MODEL={zip,man,m,isD2L};
+   if(isD2L){$('#combinebox').classList.add('hide');$('#pkgnote').classList.remove('hide');}
+   else{$('#pkgnote').classList.add('hide');renderModules(m);}
    $('#go').disabled=false;
  }catch(err){$('#modlist').innerHTML='<span class="err">Could not read this file: '+esc(err.message)+'</span>';console.error(err);}
 }
@@ -905,6 +914,14 @@ $('#go').addEventListener('click',async()=>{
     if(empt.length){log(`Heads-up: ${empt.length} item(s) in your course file came out of Brightspace EMPTY — the export leaves out things like web links, quizzes and hidden topics. They were already empty before this tool touched them:`,'warn');
       const cnt={};empt.forEach(it=>{const t=titleOf(it);cnt[t]=(cnt[t]||0)+1;});
       Object.entries(cnt).forEach(([t,n])=>log(`  · ${t}${n>1?` (×${n})`:''}`,'warn'));log('');}}
+   if(MODEL.isD2L){
+     // Brightspace Package: restyle pages only. No reorder, no combine — the manifest
+     // (unit descriptions!) and every D2L data file pass through byte-identical.
+     log('Brightspace Package — styling your pages; everything else rides along unchanged …');
+     let b=await buildRestyle(zip,man,m,false);
+     b=await repairRefs(b);
+     log('Double-checking it:');await verify(b);dlButton(b,`${base} - Template Applied.zip`,true);log('');
+   }else{
    if(mode==='restyle'||mode==='both'){
      log('Applying the style …');let b=await buildRestyle(zip,man,m,true);
      b=await repairRefs(b);
@@ -914,6 +931,7 @@ $('#go').addEventListener('click',async()=>{
      log('Applying the style, and combining short pages …');let b=await buildCombine(zip,man,m,keep,true);
      b=await repairRefs(b);
      log('Double-checking it:');await verify(b);dlButton(b,`${base} - Template Applied (Condensed Content).imscc`,false);log('');
+   }
    }
    log('All done! Click the download button(s) above.','pass');
  }catch(err){log('Something went wrong: '+err.message,'err');console.error(err);}
