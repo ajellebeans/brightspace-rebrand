@@ -98,8 +98,8 @@
 
   <div class="card">
     <h2 style="margin:.1rem 0 .3rem;color:var(--forest);font-size:1.1rem;">Step 1 &nbsp;Get your course file out of Brightspace</h2>
-    <p class="muted" style="margin:.1rem 0 .5rem;">You need the file ending in
-       <span class="ext">.imscc</span>. Already have it? Go straight to Step 2.</p>
+    <p class="muted" style="margin:.1rem 0 .5rem;">You need a <b>Brightspace Package</b> export &mdash; a file
+       named like <span class="path">D2LExport_&hellip;.zip</span>. Already have it? Go straight to Step 2.</p>
 
     <details class="help howto" id="howto">
       <summary>Show me how to export it &mdash; 6 steps, with pictures</summary>
@@ -111,16 +111,19 @@
       <li><b>Import / Export / Copy Components</b>
         <figure class="shot"><img src="shots/2-import-export.png" alt="The Import / Export / Copy Components option on the Course Admin page" onerror="this.closest('.shot').classList.add('missing')"><div class="ph">Screenshot goes here &mdash; save it as <code>shots/2-import-export.png</code></div></figure></li>
 
-      <li>Choose <b>Export as Common Cartridge</b><br>
-        <b class="warn">Not</b> "Export as Brightspace Package", <b class="warn">not</b> "Thin Common Cartridge".
-        <figure class="shot"><img src="shots/3-common-cartridge.png" alt="The three export options, with Export as Common Cartridge selected. Export as Brightspace Package and Export as Thin Common Cartridge are the two unselected options." onerror="this.closest('.shot').classList.add('missing')"><div class="ph">Screenshot goes here &mdash; save it as <code>shots/3-common-cartridge.png</code></div></figure></li>
+      <li>Choose <b>Export as Brightspace Package</b><br>
+        <b class="warn">Not</b> "Export as Common Cartridge", <b class="warn">not</b> "Thin Common Cartridge".
+        <figure class="shot"><img src="shots/3-brightspace-package.png" alt="The three export options, with Export as Brightspace Package selected. Export as Common Cartridge and Export as Thin Common Cartridge are the two unselected options." onerror="this.closest('.shot').classList.add('missing')"><div class="ph">Screenshot goes here &mdash; save it as <code>shots/3-brightspace-package.png</code></div></figure></li>
 
       <li>Tick <b>Select All Components</b>, then <b>Continue</b>
         <figure class="shot"><img src="shots/4-select-all.png" alt="The Select All Components tick box ticked on the Select Components to Export screen, with the Continue button below" onerror="this.closest('.shot').classList.add('missing')"><div class="ph">Screenshot goes here &mdash; save it as <code>shots/4-select-all.png</code></div></figure></li>
 
-      <li>Check the summary, then click <b>Export</b>
-        <span class="muted">&mdash; every section should say "Export all items".</span>
-        <figure class="shot"><img src="shots/5-confirm-export.png" alt="The Confirm Components to Export screen, each section reading Export all items, with the Export button below" onerror="this.closest('.shot').classList.add('missing')"><div class="ph">Screenshot goes here &mdash; save it as <code>shots/5-confirm-export.png</code></div></figure></li>
+      <li>On the confirm screen, under <b>"Should I include course files?"</b>, tick
+        <b>Include course files in the export package</b> &mdash; then click <b>Export</b><br>
+        <b class="warn">Don't skip the tick</b> &mdash; it's off by default, and without it your pages
+        and pictures stay behind.
+        <span class="muted">Every section should say "Export all items".</span>
+        <figure class="shot"><img src="shots/5-confirm-include-files.png" alt="The Confirm Components to Export screen with the Include course files in the export package box ticked, and the Export button below" onerror="this.closest('.shot').classList.add('missing')"><div class="ph">Screenshot goes here &mdash; save it as <code>shots/5-confirm-include-files.png</code></div></figure></li>
 
       <li>Wait for <b>"The course export was successful"</b>, then click
         <b>"Click here to download the export Zip package"</b>
@@ -129,25 +132,29 @@
         <figure class="shot"><img src="shots/6-download-zip.png" alt="The Export Summary screen reading The course export was successful, with the link Click here to download the export Zip package" onerror="this.closest('.shot').classList.add('missing')"><div class="ph">Screenshot goes here &mdash; save it as <code>shots/6-download-zip.png</code></div></figure></li>
     </ol>
     <p style="margin:.7rem 0 0;">That download is your course file &mdash; something like
-       <span class="path">YourCourse.imscc</span>. Take it to Step 2 <b>exactly as it is</b>:
+       <span class="path">D2LExport_12345_YourCourse.zip</span>. Take it to Step 2 <b>exactly as it is</b>:
        <b>don't open, unzip, or re-zip it</b>.</p>
-    <p class="muted" style="margin:.35rem 0 0;">Brightspace calls it a "Zip package", so it's tempting to
-       unzip it. Don't &mdash; this tool needs it whole, exactly as it downloaded.</p>
+    <p class="muted" style="margin:.35rem 0 0;">It ends in ".zip", so it's tempting to unzip it.
+       Don't &mdash; this tool needs it whole, exactly as it downloaded.</p>
 
     <details class="help">
       <summary>If something looks different, or it went wrong</summary>
       <!-- nested inside the walkthrough: only relevant to someone reading the steps -->
       <div class="body">
         <h4>My screen doesn't match / I'm not sure which export to pick</h4>
-        <p>Only plain <b>Common Cartridge</b> includes your actual page content. "Export as Brightspace
-           Package" and "Thin Common Cartridge" will look like they worked and then produce a file this
-           tool can't do anything useful with.</p>
+        <p>Pick <b>Export as Brightspace Package</b> &mdash; it carries the most: your pages, pictures,
+           the intro text and images on each unit, quizzes, assignments and discussions. (Got a
+           <span class="ext">.imscc</span> Common Cartridge file from somewhere instead? The tool accepts
+           that too, but a Common Cartridge export <b>leaves out each unit's intro text and images</b>,
+           so export a Brightspace Package when you can.)</p>
 
         <h4>Which components should I tick?</h4>
         <p>Tick the top box, <b>Select All Components</b> &mdash; that gets everything (Content, Assignments,
            Quizzes, and so on). When in doubt, take it all: including extra components does no harm, and
            <i>leaving things out</i> is what usually goes wrong. If it asks whether to include <b>all items</b>
-           or pick them individually, choose <b>all items</b>.</p>
+           or pick them individually, choose <b>all items</b>. And on the confirm screen, <b>tick
+           "Include course files in the export package"</b> &mdash; that's the box that brings your actual
+           pages and pictures along.</p>
 
         <h4>I clicked Done / navigated away, and never got the download</h4>
         <p>Nothing is lost &mdash; the export is still waiting for you. When it's ready, the <b>bell (🔔)</b>
@@ -158,14 +165,14 @@
         <p class="muted">The export runs in the background, so it's also fine to close the tab and come
            back for it later.</p>
 
-        <h4>I can't see ".imscc" on the end of the file name</h4>
-        <p>That's normal &mdash; Windows usually hides it. As long as you chose <b>Common Cartridge</b>, it's
-           the right file.</p>
+        <h4>I can't see ".zip" on the end of the file name</h4>
+        <p>That's normal &mdash; Windows usually hides it. As long as the name starts with
+           <span class="path">D2LExport_</span> and you chose <b>Brightspace Package</b>, it's the right file.</p>
 
         <h4>My Mac turned it into a folder instead of a file</h4>
         <p>Safari unzipped it for you. Turn off <b>Safari → Settings → General → "Open safe files after
-           downloading"</b>, then download it again. Don't try to re-zip the folder yourself &mdash; that
-           makes a <span class="ext">.zip</span>, which is not the same thing.</p>
+           downloading"</b>, then download it again. Don't try to re-zip the folder yourself &mdash; a
+           re-zipped folder is not the same file and won't import properly.</p>
 
         <h4>This is a Blackboard course, not Brightspace</h4>
         <p>This tool works on <b>Brightspace</b> exports. A Blackboard export won't have the right shape inside.</p>
@@ -178,10 +185,10 @@
   <div class="card">
     <h2 style="margin:.1rem 0 .6rem;color:var(--forest);font-size:1.1rem;">Step 2 &nbsp;Drop that file here</h2>
     <div id="drop" role="button" tabindex="0"
-         aria-label="Upload your .imscc course file: drag and drop here, or press Enter to browse">
+         aria-label="Upload your exported course file: drag and drop here, or press Enter to browse">
       <strong>Drag your course file onto this box</strong><br>
       <span class="muted">…or click here to find it on your computer</span>
-      <input id="file" type="file" accept=".imscc,.zip" aria-label="Choose your .imscc course file" class="hide"></div>
+      <input id="file" type="file" accept=".zip,.imscc" aria-label="Choose your exported course file" class="hide"></div>
 
     <div id="pkgnote" class="note hide" style="margin-top:1.2rem;">📦 <b>Brightspace Package detected.</b>
       Your pages will get the RDP style; your unit descriptions (including their pictures), quizzes,
@@ -216,11 +223,14 @@
 
   <div class="card">
     <h2 style="margin:.1rem 0 .6rem;color:var(--forest);font-size:1.1rem;">Step 3 &nbsp;Put it back into Brightspace</h2>
-    <p style="margin:.1rem 0;">When it's done, you'll see one or two <b>download buttons</b> above:</p>
+    <p style="margin:.1rem 0;">When it's done, you'll see a <b>download button</b> above:</p>
     <ul style="margin:.4rem 0 .2rem 1.2rem;padding:0;">
-      <li><b>Template Applied</b> — your course restyled, same pages as before <span class="muted">(the safe choice)</span></li>
-      <li><b>Template Applied (Condensed Content)</b> — restyled, with very short pages merged together for less clicking</li>
+      <li><b>Template Applied</b> — your course restyled: same pages, same unit intros and pictures,
+          same quizzes and assignments — only the look changes</li>
     </ul>
+    <p class="muted" style="margin:.35rem 0 0;">(Converting an <span class="ext">.imscc</span> file instead?
+       You may also get a <b>Template Applied (Condensed Content)</b> button — that one merges very short
+       pages together for less clicking.)</p>
     <p style="margin:.6rem 0 0;">Import one back into Brightspace:
        <b>Course Admin → Import / Export / Copy Components → Import Components → Start → Upload your file → Import All Components</b>.</p>
     <p class="muted" style="margin:.5rem 0 0;">If the combined version looks off, just use the plain
@@ -655,7 +665,9 @@ async function buildRestyle(zip,man,m,reorder){
  let outMan=man;if(reorder){const r=reorderManifest(m,man);outMan=r.man;r.logs.forEach(l=>log(l));}
  const w=makeZipWriter();let re=0,cp=0;
  for(const e of zip.entries){
-   if(e.name==='imsmanifest.xml'){await w.addText(e.name,outMan);cp++;continue;}
+   // unchanged manifest: copy the ORIGINAL bytes (a re-encode would strip the UTF-8 BOM
+   // D2L packages carry, and the safest manifest is a byte-identical one)
+   if(e.name==='imsmanifest.xml'){if(outMan===man)w.copy(e);else await w.addText(e.name,outMan);cp++;continue;}
    if(htmlEntries[e.name]!==undefined){const raw=await zip.text(e.name);
      const bm=raw.match(/<body[^>]*>([\s\S]*)<\/body>/i);const body=bm?bm[1]:raw;
      await w.addText(e.name,renderStandalone(htmlEntries[e.name]||m.restyleTitle(e.name),body));re++;}
@@ -851,7 +863,7 @@ async function setFile(f){
  try{
    const zip=readZip(await f.arrayBuffer());
    const man=await zip.text('imsmanifest.xml');
-   if(!man){$('#modlist').innerHTML='<span class="err">This file has no course manifest inside — it may not be the <b>.imscc</b> that Brightspace exported. (A plain .zip you made yourself won\'t work.)</span>';return;}
+   if(!man){$('#modlist').innerHTML='<span class="err">This file has no course manifest inside — it may not be the export that Brightspace produced. (A .zip you zipped yourself won\'t work — use the untouched <b>D2LExport_…zip</b> download.)</span>';return;}
    const m=buildModel(zip,man);
    // A D2L "Brightspace Package" export (not Common Cartridge): restyle-only — its manifest
    // carries unit descriptions, quiz/assignment payloads etc. that must pass through untouched.

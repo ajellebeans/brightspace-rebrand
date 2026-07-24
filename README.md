@@ -39,9 +39,9 @@ unfinished. To add or refresh one, drop a PNG in with the exact name the placeho
 |---|---|
 | `shots/1-course-admin.png` | The **Course Admin** link in the course navbar |
 | `shots/2-import-export.png` | **Import / Export / Copy Components** on the Course Admin page |
-| `shots/3-common-cartridge.png` | **Export as Common Cartridge** selected |
+| `shots/3-brightspace-package.png` | **Export as Brightspace Package** selected |
 | `shots/4-select-all.png` | The **Select All Components** tick box |
-| `shots/5-confirm-export.png` | **Confirm Components to Export**, with the **Export** button |
+| `shots/5-confirm-include-files.png` | **Confirm Components to Export**, with **Include course files in the export package** ticked and the **Export** button |
 | `shots/6-download-zip.png` | **Export Summary** — "successful", with the download link |
 | `shots/bell-notification.png` | The navbar **bell (🔔)** with its orange dot |
 | `shots/bell-export-finished.png` | The bell list showing **Export finished** |
@@ -54,10 +54,21 @@ Crop tight to the relevant control. Keep them under ~200 KB each.
 Use a **sandbox course**, not a live one — these are published to a public site, so check each image
 for learner names, enrolment counts and unpublished titles before committing.
 
+### The recommended input format
+
+The instructions steer everyone to **Export as Brightspace Package** (a `D2LExport_….zip`): its
+manifest carries the unit descriptions (each unit's intro text + images from the new content
+experience), plus quizzes/assignments/discussions — all of which Common Cartridge drops. The tool
+detects the format on drop: Brightspace Packages get restyle-only (manifest passed through
+byte-identical); `.imscc` files still work and additionally offer page-combining. Verified
+end-to-end 2026-07-23: export → convert → import round-trip with all 9 unit descriptions, images
+and 28 styled pages intact.
+
 ### Testing
 
 `test.imscc` is a tiny synthetic cartridge (not a real course). Drop it into the tool and run it:
-expect **two `RESULT: PASS`** lines and two download buttons.
+expect **two `RESULT: PASS`** lines and two download buttons. (A Brightspace Package produces
+**one** PASS and one button.)
 
 `validate.py` (next to the CLI) lints a *rebranded* `.imscc` for residue the reskin leaves behind —
 unconverted marker icons and mangled `%20` / `_20` / `#data-ally` URLs. Worth running on the output
